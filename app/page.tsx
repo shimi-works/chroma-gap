@@ -31,6 +31,16 @@ function colorDistance(a: RGB,b: RGB) {
   return Math.sqrt((2+mean/256)*dr*dr+4*dg*dg+(2+(255-mean)/256)*db*db);
 }
 
+function colorStats(c: RGB) {
+  const max=Math.max(...c), min=Math.min(...c), d=max-min;
+  let h=0;
+  if(d){ if(max===c[0]) h=((c[1]-c[2])/d)%6; else if(max===c[1]) h=(c[2]-c[0])/d+2; else h=(c[0]-c[1])/d+4; h=Math.round(h*60); if(h<0)h+=360; }
+  const saturation=max===0?0:Math.round(d/max*100);
+  const brightness=Math.round((.2126*c[0]+.7152*c[1]+.0722*c[2])/255*100);
+  const names=['赤','オレンジ','黄','黄緑','緑','青緑','シアン','空色','青','紫','マゼンタ','ローズ'];
+  return {h,saturation,brightness,name:saturation<8?'ニュートラル':names[Math.round(h/30)%12]};
+}
+
 export default function Home() {
   const [level,setLevel]=useState(0);
   const board=useMemo(()=>makeBoard(level),[level]);
@@ -40,6 +50,7 @@ export default function Home() {
   const [checked,setChecked]=useState(false);
   const [showHint,setShowHint]=useState(false);
   const selected=answers[active]??[128,128,128] as RGB;
+  const stats=colorStats(selected);
   const answered=missing.filter(i=>answers[i]).length;
   const distances=missing.map(i=>answers[i]?colorDistance(answers[i],board[i].lit):255);
   const score=Math.round(Math.max(0,100-distances.reduce((a,b)=>a+b,0)/distances.length/2.2));
@@ -60,9 +71,15 @@ export default function Home() {
         <div className="arrow" aria-hidden="true"><span>LIGHT</span>→</div>
         <Board title="02 / ライティング後" sub={`${missing.length}か所が欠けています`} cells={board} mode="lit" active={active} answers={answers} checked={checked} onPick={setActive}/>
       </div>
-      <aside className="controls">
+      <aside className="controls glass-card">
         <div className="control-head"><div><p className="eyebrow">SELECTED CELL</p><h2>色を調整</h2></div><span className="cell-number">{String(missing.indexOf(active)+1).padStart(2,'0')}</span></div>
-        <label className="color-well" style={{background:rgb(selected)}}><input type="color" value={hex(selected)} onChange={e=>update(hexToRgb(e.target.value))} aria-label="色を選ぶ"/><span>{hex(selected).toUpperCase()}</span></label>
+        <label className="color-well" style={{background:rgb(selected)}}><input type="color" value={hex(selected)} onChange={e=>update(hexToRgb(e.target.value))} aria-label="色を選ぶ"/><span className="pick-label">クリックして色を選択</span><b>{hex(selected).toUpperCase()}</b></label>
+        <div className="color-summary" aria-label="現在の色の情報">
+          <div><span>色味</span><strong>{stats.name}</strong></div>
+          <div><span>明るさ</span><strong>{stats.brightness}%</strong></div>
+          <div><span>鮮やかさ</span><strong>{stats.saturation}%</strong></div>
+        </div>
+        <div className="hue-track" aria-label={`色相 ${stats.h}度`}><i style={{left:`${stats.h/360*100}%`}}/><span>色相 {stats.h}°</span></div>
         <div className="sliders">{(['R','G','B'] as const).map((name,channel)=><label key={name}><span className={`channel ${name.toLowerCase()}`}>{name}</span><input type="range" min="0" max="255" value={selected[channel]} onChange={e=>{const next=[...selected] as RGB;next[channel]=Number(e.target.value);update(next)}}/><output>{selected[channel]}</output></label>)}</div>
         <div className="progress"><span>入力済み</span><b>{answered} / {missing.length}</b><i><u style={{width:`${answered/missing.length*100}%`}}/></i></div>
         {checked&&<div className="result"><span>SCORE</span><strong>{score}</strong><small>/ 100</small><p>{score>=90?'光を完全に捉えました！':score>=70?'かなり近い！微調整してみよう。':'残った色の明るさと色味をよく観察しよう。'}</p></div>}
