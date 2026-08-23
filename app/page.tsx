@@ -35,9 +35,15 @@ function colorStats(c: RGB) {
   let h=0;
   if(d){ if(max===c[0]) h=((c[1]-c[2])/d)%6; else if(max===c[1]) h=(c[2]-c[0])/d+2; else h=(c[0]-c[1])/d+4; h=Math.round(h*60); if(h<0)h+=360; }
   const saturation=max===0?0:Math.round(d/max*100);
-  const brightness=Math.round((.2126*c[0]+.7152*c[1]+.0722*c[2])/255*100);
+  const brightness=Math.round(max/255*100);
   const names=['赤','オレンジ','黄','黄緑','緑','青緑','シアン','空色','青','紫','マゼンタ','ローズ'];
   return {h,saturation,brightness,name:saturation<8?'ニュートラル':names[Math.round(h/30)%12]};
+}
+
+function hsvToRgb(h:number,s:number,v:number):RGB {
+  s/=100;v/=100;const c=v*s,x=c*(1-Math.abs((h/60)%2-1)),m=v-c;let p:[number,number,number];
+  if(h<60)p=[c,x,0];else if(h<120)p=[x,c,0];else if(h<180)p=[0,c,x];else if(h<240)p=[0,x,c];else if(h<300)p=[x,0,c];else p=[c,0,x];
+  return p.map(n=>clamp((n+m)*255)) as RGB;
 }
 
 export default function Home() {
@@ -55,6 +61,7 @@ export default function Home() {
   const answered=missing.filter(i=>answers[i]).length;
   const average=Math.round(Object.values(scores).reduce((a,b)=>a+b,0)/Math.max(1,Object.keys(scores).length));
   const update=(value: RGB)=>{setAnswers(p=>({...p,[active]:value}));setScores(p=>{const n={...p};delete n[active];return n})};
+  const updateHSV=(key:'h'|'s'|'v',value:number)=>{const next={h:stats.h,s:stats.saturation,v:stats.brightness,[key]:value};update(hsvToRgb(next.h,next.s,next.v))};
   const grade=()=>{if(!answers[active])return;const value=Math.round(Math.max(0,100-colorDistance(answers[active],board[active].lit)/2.2));setScores(p=>({...p,[active]:value}))};
   const reset=(count=missingCount,nextLevel=level)=>{const b=makeBoard(nextLevel,count);setAnswers({});setScores({});setShowHint(false);setActive(b.findIndex(c=>c.missing))};
   const nextRound=()=>{const next=level+1;setLevel(next);reset(missingCount,next)};
@@ -81,8 +88,12 @@ export default function Home() {
           <div><span>色味</span><strong>{stats.name}</strong></div>
           <div><span>明るさ</span><strong>{stats.brightness}%</strong></div>
           <div><span>鮮やかさ</span><strong>{stats.saturation}%</strong></div>
-        </div>{scores[active]!==undefined&&<div className="cell-score"><strong>{scores[active]}</strong><span>/ 100<br/>このマスの点数</span></div>}</div><div className="adjust-side"><div className="hue-track" aria-label={`色相 ${stats.h}度`}><i style={{left:`${stats.h/360*100}%`}}/><span>色相 {stats.h}°</span></div>
-        <div className="sliders">{(['R','G','B'] as const).map((name,channel)=><label key={name}><span className={`channel ${name.toLowerCase()}`}>{name}</span><input type="range" min="0" max="255" value={selected[channel]} onChange={e=>{const next=[...selected] as RGB;next[channel]=Number(e.target.value);update(next)}}/><output>{selected[channel]}</output></label>)}</div>
+        </div>{scores[active]!==undefined&&<div className="cell-score"><strong>{scores[active]}</strong><span>/ 100<br/>このマスの点数</span></div>}</div><div className="adjust-side">
+        <div className="sliders hsv-sliders">
+          <label><span className="channel h">H</span><input className="hue-input" type="range" min="0" max="359" value={stats.h} onChange={e=>updateHSV('h',Number(e.target.value))}/><output>{stats.h}°</output></label>
+          <label><span className="channel s">S</span><input type="range" min="0" max="100" value={stats.saturation} onChange={e=>updateHSV('s',Number(e.target.value))}/><output>{stats.saturation}%</output></label>
+          <label><span className="channel v">V</span><input type="range" min="0" max="100" value={stats.brightness} onChange={e=>updateHSV('v',Number(e.target.value))}/><output>{stats.brightness}%</output></label>
+        </div>
         </div></div>
         <div className="progress"><span>入力済み</span><b>{answered} / {missing.length}</b><i><u style={{width:`${answered/missing.length*100}%`}}/></i></div>
         {Object.keys(scores).length===missing.length&&<div className="result"><span>AVERAGE</span><strong>{average}</strong><small>/ 100</small><p>すべてのマスを採点しました</p></div>}
