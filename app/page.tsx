@@ -11,14 +11,19 @@ const BASES: RGB[] = [
   [235,131,89],[155,190,91],[70,171,155],[88,133,203],
   [171,110,190],[220,105,136],[202,165,116],[111,164,136],
 ];
+const LIGHTS:{name:string;color:RGB}[] = [
+  {name:'暖色',color:[1.03,.78,.66]},
+  {name:'寒色',color:[.72,.88,1.08]},
+  {name:'夕景',color:[1.12,.62,.48]},
+  {name:'スタジオ',color:[.94,.98,1.02]},
+];
 const rgb = (c: RGB) => `rgb(${c.join(',')})`;
 const hex = (c: RGB) => `#${c.map(v => Math.round(v).toString(16).padStart(2,'0')).join('')}`;
 const hexToRgb = (v: string): RGB => [1,3,5].map(i => parseInt(v.slice(i,i+2),16)) as RGB;
 const clamp = (v: number) => Math.max(0,Math.min(255,Math.round(v)));
 
-function makeBoard(level: number, missingCount: number): Cell[] {
-  const lights: RGB[] = [[1.03,.78,.66],[.72,.88,1.08],[.86,1.02,.72],[1.06,.72,.94]];
-  const light = lights[level % lights.length];
+function makeBoard(level: number, missingCount: number, lighting: number): Cell[] {
+  const light = LIGHTS[lighting].color;
   return BASES.map((base,i) => {
     const intensity = .58 + (i%4)*.08 + Math.floor(i/4)*.035;
     return { base, lit: base.map((v,n) => clamp(v*light[n]*intensity+[18,20,30][n])) as RGB, missing: ((i*5+level*3)%16)<missingCount };
@@ -50,7 +55,8 @@ export default function Home() {
   const [level,setLevel]=useState(0);
   const [missingCount,setMissingCount]=useState(6);
   const [difficulty,setDifficulty]=useState<'easy'|'normal'>('easy');
-  const board=useMemo(()=>makeBoard(level,missingCount),[level,missingCount]);
+  const [lighting,setLighting]=useState(0);
+  const board=useMemo(()=>makeBoard(level,missingCount,lighting),[level,missingCount,lighting]);
   const missing=useMemo(()=>board.map((c,i)=>c.missing?i:-1).filter(i=>i>=0),[board]);
   const [active,setActive]=useState(missing[0]??0);
   const [answers,setAnswers]=useState<Record<number,RGB>>({});
@@ -63,14 +69,17 @@ export default function Home() {
   const locked=scores[active]!==undefined;
   const hueDiff=Math.min(Math.abs(stats.h-correctStats.h),360-Math.abs(stats.h-correctStats.h));
   const answered=missing.filter(i=>answers[i]).length;
-  const average=Math.round(Object.values(scores).reduce((a,b)=>a+b,0)/Math.max(1,Object.keys(scores).length));
+  const totalScore=Object.values(scores).reduce((a,b)=>a+b,0);
+  const completed=Object.keys(scores).length===missing.length;
+  const settingsLocked=answered>0&&!completed;
   const update=(value: RGB)=>{if(locked)return;setAnswers(p=>({...p,[active]:value}))};
   const updateHSV=(key:'h'|'s'|'v',value:number)=>{const next={h:stats.h,s:stats.saturation,v:stats.brightness,[key]:value};update(hsvToRgb(next.h,next.s,next.v))};
   const grade=()=>{if(!answers[active])return;const value=Math.round(Math.max(0,100-colorDistance(answers[active],board[active].lit)/2.2));setScores(p=>({...p,[active]:value}))};
-  const reset=(count=missingCount,nextLevel=level)=>{const b=makeBoard(nextLevel,count);setAnswers({});setScores({});setShowHint(false);setActive(b.findIndex(c=>c.missing))};
+  const reset=(count=missingCount,nextLevel=level,nextLighting=lighting)=>{const b=makeBoard(nextLevel,count,nextLighting);setAnswers({});setScores({});setShowHint(false);setActive(b.findIndex(c=>c.missing))};
   const nextRound=()=>{const next=level+1;setLevel(next);reset(missingCount,next)};
-  const changeCount=(count:number)=>{setMissingCount(count);reset(count,level)};
-  const changeDifficulty=(value:'easy'|'normal')=>{setDifficulty(value);reset(missingCount,level)};
+  const changeCount=(count:number)=>{if(settingsLocked)return;setMissingCount(count);reset(count,level)};
+  const changeDifficulty=(value:'easy'|'normal')=>{if(settingsLocked)return;setDifficulty(value);reset(missingCount,level)};
+  const changeLighting=(value:number)=>{if(settingsLocked)return;setLighting(value);reset(missingCount,level,value)};
 
   return <main className="shell">
     <header className="topbar">
@@ -78,7 +87,7 @@ export default function Home() {
       <div className="round-pill">ROUND <b>{String(level+1).padStart(2,'0')}</b></div>
       <button className="icon-button" onClick={()=>setShowHint(v=>!v)} aria-label="遊び方">?</button>
     </header>
-    <section className="intro"><div><p className="eyebrow">COLOR × LIGHT PUZZLE</p><h1>欠けた光を、<br/><em>色で埋める。</em></h1></div><div className="intro-side"><p className="lede">左の固有色と、右に残された光の手がかりを観察して、空白に入る色を推理しよう。</p><div className="game-settings"><div className="setting-row"><span>モード</span><div className="segmented"><button className={difficulty==='easy'?'selected':''} onClick={()=>changeDifficulty('easy')}>イージー</button><button className={difficulty==='normal'?'selected':''} onClick={()=>changeDifficulty('normal')}>ノーマル</button></div></div><div className="setting-row"><span>虫食い数</span><div className="count-buttons">{[3,5,6,8,10].map(n=><button key={n} className={missingCount===n?'selected':''} onClick={()=>changeCount(n)}>{n}</button>)}</div></div></div></div></section>
+    <section className="intro"><div><p className="eyebrow">COLOR × LIGHT PUZZLE</p><h1>欠けた光を、<br/><em>色で埋める。</em></h1></div><div className="intro-side"><p className="lede">左の固有色と、右に残された光の手がかりを観察して、空白に入る色を推理しよう。</p><div className={`game-settings ${settingsLocked?'settings-locked':''}`}><div className="setting-row"><span>モード</span><div className="segmented"><button disabled={settingsLocked} className={difficulty==='easy'?'selected':''} onClick={()=>changeDifficulty('easy')}>イージー</button><button disabled={settingsLocked} className={difficulty==='normal'?'selected':''} onClick={()=>changeDifficulty('normal')}>ノーマル</button></div></div><div className="setting-row"><span>虫食い数</span><div className="count-buttons">{[3,5,6,8,10].map(n=><button disabled={settingsLocked} key={n} className={missingCount===n?'selected':''} onClick={()=>changeCount(n)}>{n}</button>)}</div></div><div className="setting-row lighting-row"><span>ライト</span><div className="lighting-buttons">{LIGHTS.map((item,i)=><button disabled={settingsLocked} key={item.name} className={lighting===i?'selected':''} onClick={()=>changeLighting(i)}>{item.name}</button>)}</div></div>{settingsLocked&&<p className="settings-note">プレイ中は設定を変更できません</p>}</div></div></section>
     {showHint&&<aside className="hint"><b>遊び方</b><span>右の点線セルを選択 → 下のパレットで色を調整 → すべて埋めたら採点。残っている色から光の色と強さを読み取るのがコツです。</span><button onClick={()=>setShowHint(false)}>×</button></aside>}
     <section className="game-area">
       <div className="boards">
@@ -102,9 +111,9 @@ export default function Home() {
         </div></div>
         {locked&&<div className="answer-comparison"><div className="compare-head"><b>採点結果</b><span>確定後は変更できません</span></div><div className="compare-grid"><span></span><b>あなた</b><b>正解</b><b>差</b><span>H</span><strong>{stats.h}°</strong><strong>{correctStats.h}°</strong><em>{hueDiff}°</em><span>S</span><strong>{stats.saturation}%</strong><strong>{correctStats.saturation}%</strong><em>{Math.abs(stats.saturation-correctStats.saturation)}%</em><span>V</span><strong>{stats.brightness}%</strong><strong>{correctStats.brightness}%</strong><em>{Math.abs(stats.brightness-correctStats.brightness)}%</em></div></div>}
         <div className="progress"><span>入力済み</span><b>{answered} / {missing.length}</b><i><u style={{width:`${answered/missing.length*100}%`}}/></i></div>
-        {Object.keys(scores).length===missing.length&&<div className="result"><span>AVERAGE</span><strong>{average}</strong><small>/ 100</small><p>すべてのマスを採点しました</p></div>}
+        {completed&&<div className="result total-result"><span>TOTAL SCORE</span><strong>{totalScore}点</strong><small>/ {missing.length*100}点満点</small><p>{missing.length}マスすべての合計点</p></div>}
         <button className="primary" disabled={!answers[active]||locked} onClick={grade}>{locked?`${scores[active]}点 / 100点・確定済み`:'このマスを確定して採点'} <span>↗</span></button>
-        {Object.keys(scores).length===missing.length&&<button className="secondary" onClick={nextRound}>次のラウンドへ →</button>}
+        {completed&&<button className="secondary" onClick={nextRound}>次のラウンドへ →</button>}
       </aside>
     </section>
     {zoomed&&<div className="zoom-modal" role="dialog" aria-modal="true" aria-label="回答盤面の拡大表示" onClick={()=>setZoomed(false)}><div onClick={e=>e.stopPropagation()}><button className="zoom-close" onClick={()=>setZoomed(false)}>×</button><Board title="拡大表示" sub="マスを選択できます" cells={board} mode="lit" active={active} answers={answers} scores={scores} onPick={i=>{setActive(i);setZoomed(false)}}/></div></div>}
