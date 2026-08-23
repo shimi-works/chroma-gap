@@ -54,7 +54,7 @@ function hsvToRgb(h:number,s:number,v:number):RGB {
 export default function Home() {
   const [level,setLevel]=useState(0);
   const [missingCount,setMissingCount]=useState(6);
-  const [difficulty,setDifficulty]=useState<'easy'|'normal'>('easy');
+  const [difficulty,setDifficulty]=useState<'easy'|'normal'|'hard'>('easy');
   const [lighting,setLighting]=useState(0);
   const board=useMemo(()=>makeBoard(level,missingCount,lighting),[level,missingCount,lighting]);
   const missing=useMemo(()=>board.map((c,i)=>c.missing?i:-1).filter(i=>i>=0),[board]);
@@ -63,11 +63,13 @@ export default function Home() {
   const [scores,setScores]=useState<Record<number,number>>({});
   const [zoomed,setZoomed]=useState(false);
   const [showHint,setShowHint]=useState(false);
-  const selected=answers[active]??(difficulty==='easy'?hsvToRgb(colorStats(board[active].lit).h,50,50):[128,128,128]) as RGB;
+  const hueFixed=difficulty!=='hard';
+  const selected=answers[active]??(hueFixed?hsvToRgb(colorStats(board[active].lit).h,50,50):[128,128,128]) as RGB;
   const stats=colorStats(selected);
   const correctStats=colorStats(board[active].lit);
   const locked=scores[active]!==undefined;
   const hueDiff=Math.min(Math.abs(stats.h-correctStats.h),360-Math.abs(stats.h-correctStats.h));
+  const assist=(value:number,target:number,label:string)=>Math.abs(value-target)<=2?`${label}はほぼ正解`:value<target?`${label}を上げよう`:`${label}を下げよう`;
   const answered=missing.filter(i=>answers[i]).length;
   const totalScore=Object.values(scores).reduce((a,b)=>a+b,0);
   const completed=Object.keys(scores).length===missing.length;
@@ -78,7 +80,7 @@ export default function Home() {
   const reset=(count=missingCount,nextLevel=level,nextLighting=lighting)=>{const b=makeBoard(nextLevel,count,nextLighting);setAnswers({});setScores({});setShowHint(false);setActive(b.findIndex(c=>c.missing))};
   const nextRound=()=>{const next=level+1;setLevel(next);reset(missingCount,next)};
   const changeCount=(count:number)=>{if(settingsLocked)return;setMissingCount(count);reset(count,level)};
-  const changeDifficulty=(value:'easy'|'normal')=>{if(settingsLocked)return;setDifficulty(value);reset(missingCount,level)};
+  const changeDifficulty=(value:'easy'|'normal'|'hard')=>{if(settingsLocked)return;setDifficulty(value);reset(missingCount,level)};
   const changeLighting=(value:number)=>{if(settingsLocked)return;setLighting(value);reset(missingCount,level,value)};
 
   return <main className="shell">
@@ -87,8 +89,8 @@ export default function Home() {
       <div className="round-pill">ROUND <b>{String(level+1).padStart(2,'0')}</b></div>
       <button className="icon-button" onClick={()=>setShowHint(v=>!v)} aria-label="遊び方">?</button>
     </header>
-    <section className="intro"><div><p className="eyebrow">COLOR × LIGHT PUZZLE</p><h1>欠けた光を、<br/><em>色で埋める。</em></h1></div><div className="intro-side"><p className="lede">左の固有色と、右に残された光の手がかりを観察して、空白に入る色を推理しよう。</p><div className={`game-settings ${settingsLocked?'settings-locked':''}`}><div className="setting-row"><span>モード</span><div className="segmented"><button disabled={settingsLocked} className={difficulty==='easy'?'selected':''} onClick={()=>changeDifficulty('easy')}>イージー</button><button disabled={settingsLocked} className={difficulty==='normal'?'selected':''} onClick={()=>changeDifficulty('normal')}>ノーマル</button></div></div><div className="setting-row"><span>虫食い数</span><div className="count-buttons">{[3,5,6,8,10].map(n=><button disabled={settingsLocked} key={n} className={missingCount===n?'selected':''} onClick={()=>changeCount(n)}>{n}</button>)}</div></div><div className="setting-row lighting-row"><span>ライト</span><div className="lighting-buttons">{LIGHTS.map((item,i)=><button disabled={settingsLocked} key={item.name} className={lighting===i?'selected':''} onClick={()=>changeLighting(i)}>{item.name}</button>)}</div></div>{settingsLocked&&<p className="settings-note">プレイ中は設定を変更できません</p>}</div></div></section>
-    {showHint&&<div className="help-backdrop" role="dialog" aria-modal="true" aria-labelledby="help-title" onClick={()=>setShowHint(false)}><aside className="help-panel" onClick={e=>e.stopPropagation()}><button className="help-close" onClick={()=>setShowHint(false)} aria-label="ヘルプを閉じる">×</button><p className="eyebrow">HOW TO PLAY</p><h2 id="help-title">遊び方</h2><ol><li>モード、虫食い数、ライトを選びます。</li><li>右の欠けたマスを選び、HSVで色を合わせます。</li><li>「確定して採点」を押すと、そのマスの得点と正解値が表示されます。</li></ol><p className="help-tip">色を動かすと設定がロックされます。全マス採点後、合計点が表示されます。</p><details><summary>点数の計算方法</summary><div className="formula-content"><p>HSVで作った色と正解色をRGBへ変換し、人の見え方に近づけた加重RGB距離 <b>D</b> を求めます。</p><code>D = √((2 + R̄/256)ΔR² + 4ΔG² + (2 + (255−R̄)/256)ΔB²)</code><dl><div><dt>ΔR・ΔG・ΔB</dt><dd>自分の色と正解色のRGB差</dd></div><div><dt>R̄</dt><dd>2色の赤成分の平均</dd></div></dl><p>緑の差を強めに評価し、赤と青は明るさに応じて重みを変えています。</p><code>1マスの点数 = round(max(0, 100 − D ÷ 2.2))</code><code>合計点 = 各マスの点数の合計 / (n × 100点満点)</code><p className="formula-note">完全一致は100点。色差が大きいほど0点に近づきます。</p></div></details></aside></div>}
+    <section className="intro"><div><p className="eyebrow">COLOR × LIGHT PUZZLE</p><h1>欠けた光を、<br/><em>色で埋める。</em></h1></div><div className="intro-side"><p className="lede">左の固有色と、右に残された光の手がかりを観察して、空白に入る色を推理しよう。</p><div className={`game-settings ${settingsLocked?'settings-locked':''}`}><div className="setting-row"><span>モード</span><div className="segmented mode-buttons"><button disabled={settingsLocked} className={difficulty==='easy'?'selected':''} onClick={()=>changeDifficulty('easy')}>イージー</button><button disabled={settingsLocked} className={difficulty==='normal'?'selected':''} onClick={()=>changeDifficulty('normal')}>ノーマル</button><button disabled={settingsLocked} className={difficulty==='hard'?'selected':''} onClick={()=>changeDifficulty('hard')}>ハード</button></div></div><div className="setting-row"><span>虫食い数</span><div className="count-buttons">{[3,5,6,8,10].map(n=><button disabled={settingsLocked} key={n} className={missingCount===n?'selected':''} onClick={()=>changeCount(n)}>{n}</button>)}</div></div><div className="setting-row lighting-row"><span>ライト</span><div className="lighting-buttons">{LIGHTS.map((item,i)=><button disabled={settingsLocked} key={item.name} className={lighting===i?'selected':''} onClick={()=>changeLighting(i)}>{item.name}</button>)}</div></div>{settingsLocked&&<p className="settings-note">プレイ中は設定を変更できません</p>}</div></div></section>
+    {showHint&&<div className="help-backdrop" role="dialog" aria-modal="true" aria-labelledby="help-title" onClick={()=>setShowHint(false)}><aside className="help-panel" onClick={e=>e.stopPropagation()}><button className="help-close" onClick={()=>setShowHint(false)} aria-label="ヘルプを閉じる">×</button><p className="eyebrow">HOW TO PLAY</p><h2 id="help-title">遊び方</h2><ol><li>モード、虫食い数、ライトを選びます。</li><li>右の欠けたマスを選び、HSVで色を合わせます。</li><li>「確定して採点」を押すと、そのマスの得点と正解値が表示されます。</li></ol><div className="mode-guide"><p><b>イージー</b><span>色相固定＋方向ヒント</span></p><p><b>ノーマル</b><span>色相固定・ヒントなし</span></p><p><b>ハード</b><span>HSVすべて自力</span></p></div><p className="help-tip">色を動かすと設定がロックされます。全マス採点後、合計点が表示されます。</p><details><summary>点数の計算方法</summary><div className="formula-content"><p>HSVで作った色と正解色をRGBへ変換し、人の見え方に近づけた加重RGB距離 <b>D</b> を求めます。</p><code>D = √((2 + R̄/256)ΔR² + 4ΔG² + (2 + (255−R̄)/256)ΔB²)</code><dl><div><dt>ΔR・ΔG・ΔB</dt><dd>自分の色と正解色のRGB差</dd></div><div><dt>R̄</dt><dd>2色の赤成分の平均</dd></div></dl><p>緑の差を強めに評価し、赤と青は明るさに応じて重みを変えています。</p><code>1マスの点数 = round(max(0, 100 − D ÷ 2.2))</code><code>合計点 = 各マスの点数の合計 / (n × 100点満点)</code><p className="formula-note">完全一致は100点。色差が大きいほど0点に近づきます。</p></div></details></aside></div>}
     <section className="game-area">
       <div className="boards">
         <Board title="01 / 固有色" sub="光が当たる前" cells={board} mode="base"/>
@@ -104,11 +106,12 @@ export default function Home() {
           <div><span>鮮やかさ</span><strong>{stats.saturation}%</strong></div>
         </div>{locked&&<div className="cell-score"><strong>{scores[active]}点</strong><span>/ 100点<br/>このマスの点数</span></div>}</div><div className="adjust-side">
         <div className="sliders hsv-sliders">
-          <label className={difficulty==='easy'||locked?'locked':''}><span className="channel h">H</span><div className="range-wrap"><input className="hue-input" type="range" min="0" max="359" value={stats.h} disabled={difficulty==='easy'||locked} onChange={e=>updateHSV('h',Number(e.target.value))}/>{locked&&<i className="correct-cursor" style={{left:`${correctStats.h/359*100}%`}} title={`正解 ${correctStats.h}°`}/>}</div><output>{difficulty==='easy'?'固定':`${stats.h}°`}</output></label>
+          <label className={hueFixed||locked?'locked':''}><span className="channel h">H</span><div className="range-wrap"><input className="hue-input" type="range" min="0" max="359" value={stats.h} disabled={hueFixed||locked} onChange={e=>updateHSV('h',Number(e.target.value))}/>{locked&&<i className="correct-cursor" style={{left:`${correctStats.h/359*100}%`}} title={`正解 ${correctStats.h}°`}/>}</div><output>{hueFixed?'固定':`${stats.h}°`}</output></label>
           <label className={locked?'locked':''}><span className="channel s">S</span><div className="range-wrap"><input type="range" min="0" max="100" disabled={locked} value={stats.saturation} onChange={e=>updateHSV('s',Number(e.target.value))}/>{locked&&<i className="correct-cursor" style={{left:`${correctStats.saturation}%`}} title={`正解 ${correctStats.saturation}%`}/>}</div><output>{stats.saturation}%</output></label>
           <label className={locked?'locked':''}><span className="channel v">V</span><div className="range-wrap"><input type="range" min="0" max="100" disabled={locked} value={stats.brightness} onChange={e=>updateHSV('v',Number(e.target.value))}/>{locked&&<i className="correct-cursor" style={{left:`${correctStats.brightness}%`}} title={`正解 ${correctStats.brightness}%`}/>}</div><output>{stats.brightness}%</output></label>
         </div>
         </div></div>
+        {difficulty==='easy'&&!locked&&<div className="live-assist"><span>ヒント</span><b>{assist(stats.saturation,correctStats.saturation,'彩度')}</b><b>{assist(stats.brightness,correctStats.brightness,'明度')}</b></div>}
         {locked&&<div className="answer-comparison"><div className="compare-head"><b>採点結果</b><span>確定後は変更できません</span></div><div className="compare-grid"><span></span><b>あなた</b><b>正解</b><b>差</b><span>H</span><strong>{stats.h}°</strong><strong>{correctStats.h}°</strong><em>{hueDiff}°</em><span>S</span><strong>{stats.saturation}%</strong><strong>{correctStats.saturation}%</strong><em>{Math.abs(stats.saturation-correctStats.saturation)}%</em><span>V</span><strong>{stats.brightness}%</strong><strong>{correctStats.brightness}%</strong><em>{Math.abs(stats.brightness-correctStats.brightness)}%</em></div></div>}
         <div className="progress"><span>入力済み</span><b>{answered} / {missing.length}</b><i><u style={{width:`${answered/missing.length*100}%`}}/></i></div>
         {completed&&<div className="result total-result"><span>TOTAL SCORE</span><strong>{totalScore}点</strong><small>/ {missing.length*100}点満点</small><p>{missing.length}マスすべての合計点</p></div>}

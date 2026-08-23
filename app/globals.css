@@ -38,3 +38,7 @@
 
 /* v10: correct-value cursors */
 .range-wrap{position:relative;min-width:0}.range-wrap input{display:block}.correct-cursor{position:absolute;z-index:4;top:3px;bottom:3px;width:3px;border-radius:3px;background:#ff3b30;box-shadow:0 0 0 2px rgba(255,255,255,.9),0 1px 5px rgba(255,59,48,.5);transform:translateX(-50%);pointer-events:none}.correct-cursor:before{content:"";position:absolute;top:-5px;left:50%;border:5px solid transparent;border-top-color:#ff3b30;transform:translateX(-50%)}.hsv-sliders .locked{opacity:1}.hsv-sliders .locked>.channel,.hsv-sliders .locked>output,.hsv-sliders .locked input{opacity:.48}
+
+/* v11: three difficulty levels and easy hints */
+.mode-buttons button{font-size:11px}.live-assist{display:grid;grid-template-columns:auto 1fr 1fr;gap:7px;align-items:center;margin:12px 0 0;padding:10px 12px;border-radius:12px;background:#eaf4ff}.live-assist span{color:var(--blue);font-size:9px;font-weight:750}.live-assist b{padding:7px;border-radius:9px;background:#fff;color:#3a3a3c;font-size:10px;text-align:center}.mode-guide{display:grid;gap:5px;margin:14px 0}.mode-guide p{display:grid;grid-template-columns:80px 1fr;margin:0;padding:8px 10px;border-radius:10px;background:#f2f2f7;font-size:11px}.mode-guide span{color:var(--muted)}
+@media(max-width:650px){.mode-buttons button{font-size:10px;padding:0 4px}.live-assist{grid-template-columns:auto 1fr;gap:6px}.live-assist span{grid-row:1/3}.live-assist b{font-size:9px}}
