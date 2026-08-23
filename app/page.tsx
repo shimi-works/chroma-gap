@@ -59,9 +59,12 @@ export default function Home() {
   const [showHint,setShowHint]=useState(false);
   const selected=answers[active]??(difficulty==='easy'?hsvToRgb(colorStats(board[active].lit).h,50,50):[128,128,128]) as RGB;
   const stats=colorStats(selected);
+  const correctStats=colorStats(board[active].lit);
+  const locked=scores[active]!==undefined;
+  const hueDiff=Math.min(Math.abs(stats.h-correctStats.h),360-Math.abs(stats.h-correctStats.h));
   const answered=missing.filter(i=>answers[i]).length;
   const average=Math.round(Object.values(scores).reduce((a,b)=>a+b,0)/Math.max(1,Object.keys(scores).length));
-  const update=(value: RGB)=>{setAnswers(p=>({...p,[active]:value}));setScores(p=>{const n={...p};delete n[active];return n})};
+  const update=(value: RGB)=>{if(locked)return;setAnswers(p=>({...p,[active]:value}))};
   const updateHSV=(key:'h'|'s'|'v',value:number)=>{const next={h:stats.h,s:stats.saturation,v:stats.brightness,[key]:value};update(hsvToRgb(next.h,next.s,next.v))};
   const grade=()=>{if(!answers[active])return;const value=Math.round(Math.max(0,100-colorDistance(answers[active],board[active].lit)/2.2));setScores(p=>({...p,[active]:value}))};
   const reset=(count=missingCount,nextLevel=level)=>{const b=makeBoard(nextLevel,count);setAnswers({});setScores({});setShowHint(false);setActive(b.findIndex(c=>c.missing))};
@@ -85,21 +88,22 @@ export default function Home() {
       </div>
       <aside className="controls glass-card">
         <div className="control-head"><div><p className="eyebrow">SELECTED CELL</p><h2>色を調整</h2></div><span className="cell-number">{String(missing.indexOf(active)+1).padStart(2,'0')}</span></div>
-        <div className="picker-layout"><div className="picked-side"><label className="color-well" style={{background:rgb(selected)}}><input type="color" value={hex(selected)} onChange={e=>update(hexToRgb(e.target.value))} aria-label="色を選ぶ"/><span className="pick-label">選んだ色</span><b>{hex(selected).toUpperCase()}</b></label>
+        <div className={`picker-layout ${locked?'is-locked':''}`}><div className="picked-side"><label className="color-well" style={{background:rgb(selected)}}><input type="color" disabled={locked} value={hex(selected)} onChange={e=>update(hexToRgb(e.target.value))} aria-label="色を選ぶ"/><span className="pick-label">{locked?'確定した色':'選んだ色'}</span><b>{hex(selected).toUpperCase()}</b></label>
         <div className="color-summary" aria-label="現在の色の情報">
           <div><span>色味</span><strong>{stats.name}</strong></div>
           <div><span>明るさ</span><strong>{stats.brightness}%</strong></div>
           <div><span>鮮やかさ</span><strong>{stats.saturation}%</strong></div>
-        </div>{scores[active]!==undefined&&<div className="cell-score"><strong>{scores[active]}</strong><span>/ 100<br/>このマスの点数</span></div>}</div><div className="adjust-side">
+        </div>{locked&&<div className="cell-score"><strong>{scores[active]}点</strong><span>/ 100点<br/>このマスの点数</span></div>}</div><div className="adjust-side">
         <div className="sliders hsv-sliders">
-          <label className={difficulty==='easy'?'locked':''}><span className="channel h">H</span><input className="hue-input" type="range" min="0" max="359" value={stats.h} disabled={difficulty==='easy'} onChange={e=>updateHSV('h',Number(e.target.value))}/><output>{difficulty==='easy'?'固定':`${stats.h}°`}</output></label>
-          <label><span className="channel s">S</span><input type="range" min="0" max="100" value={stats.saturation} onChange={e=>updateHSV('s',Number(e.target.value))}/><output>{stats.saturation}%</output></label>
-          <label><span className="channel v">V</span><input type="range" min="0" max="100" value={stats.brightness} onChange={e=>updateHSV('v',Number(e.target.value))}/><output>{stats.brightness}%</output></label>
+          <label className={difficulty==='easy'||locked?'locked':''}><span className="channel h">H</span><input className="hue-input" type="range" min="0" max="359" value={stats.h} disabled={difficulty==='easy'||locked} onChange={e=>updateHSV('h',Number(e.target.value))}/><output>{difficulty==='easy'?'固定':`${stats.h}°`}</output></label>
+          <label className={locked?'locked':''}><span className="channel s">S</span><input type="range" min="0" max="100" disabled={locked} value={stats.saturation} onChange={e=>updateHSV('s',Number(e.target.value))}/><output>{stats.saturation}%</output></label>
+          <label className={locked?'locked':''}><span className="channel v">V</span><input type="range" min="0" max="100" disabled={locked} value={stats.brightness} onChange={e=>updateHSV('v',Number(e.target.value))}/><output>{stats.brightness}%</output></label>
         </div>
         </div></div>
+        {locked&&<div className="answer-comparison"><div className="compare-head"><b>採点結果</b><span>確定後は変更できません</span></div><div className="compare-grid"><span></span><b>あなた</b><b>正解</b><b>差</b><span>H</span><strong>{stats.h}°</strong><strong>{correctStats.h}°</strong><em>{hueDiff}°</em><span>S</span><strong>{stats.saturation}%</strong><strong>{correctStats.saturation}%</strong><em>{Math.abs(stats.saturation-correctStats.saturation)}%</em><span>V</span><strong>{stats.brightness}%</strong><strong>{correctStats.brightness}%</strong><em>{Math.abs(stats.brightness-correctStats.brightness)}%</em></div></div>}
         <div className="progress"><span>入力済み</span><b>{answered} / {missing.length}</b><i><u style={{width:`${answered/missing.length*100}%`}}/></i></div>
         {Object.keys(scores).length===missing.length&&<div className="result"><span>AVERAGE</span><strong>{average}</strong><small>/ 100</small><p>すべてのマスを採点しました</p></div>}
-        <button className="primary" disabled={!answers[active]} onClick={grade}>{scores[active]===undefined?'このマスを採点する':'色を変えて再採点'} <span>↗</span></button>
+        <button className="primary" disabled={!answers[active]||locked} onClick={grade}>{locked?`${scores[active]}点 / 100点・確定済み`:'このマスを確定して採点'} <span>↗</span></button>
         {Object.keys(scores).length===missing.length&&<button className="secondary" onClick={nextRound}>次のラウンドへ →</button>}
       </aside>
     </section>
