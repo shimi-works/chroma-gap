@@ -49,6 +49,7 @@ function hsvToRgb(h:number,s:number,v:number):RGB {
 export default function Home() {
   const [level,setLevel]=useState(0);
   const [missingCount,setMissingCount]=useState(6);
+  const [difficulty,setDifficulty]=useState<'easy'|'normal'>('easy');
   const board=useMemo(()=>makeBoard(level,missingCount),[level,missingCount]);
   const missing=useMemo(()=>board.map((c,i)=>c.missing?i:-1).filter(i=>i>=0),[board]);
   const [active,setActive]=useState(missing[0]??0);
@@ -56,7 +57,7 @@ export default function Home() {
   const [scores,setScores]=useState<Record<number,number>>({});
   const [zoomed,setZoomed]=useState(false);
   const [showHint,setShowHint]=useState(false);
-  const selected=answers[active]??[128,128,128] as RGB;
+  const selected=answers[active]??(difficulty==='easy'?hsvToRgb(colorStats(board[active].lit).h,50,50):[128,128,128]) as RGB;
   const stats=colorStats(selected);
   const answered=missing.filter(i=>answers[i]).length;
   const average=Math.round(Object.values(scores).reduce((a,b)=>a+b,0)/Math.max(1,Object.keys(scores).length));
@@ -66,6 +67,7 @@ export default function Home() {
   const reset=(count=missingCount,nextLevel=level)=>{const b=makeBoard(nextLevel,count);setAnswers({});setScores({});setShowHint(false);setActive(b.findIndex(c=>c.missing))};
   const nextRound=()=>{const next=level+1;setLevel(next);reset(missingCount,next)};
   const changeCount=(count:number)=>{setMissingCount(count);reset(count,level)};
+  const changeDifficulty=(value:'easy'|'normal')=>{setDifficulty(value);reset(missingCount,level)};
 
   return <main className="shell">
     <header className="topbar">
@@ -73,7 +75,7 @@ export default function Home() {
       <div className="round-pill">ROUND <b>{String(level+1).padStart(2,'0')}</b></div>
       <button className="icon-button" onClick={()=>setShowHint(v=>!v)} aria-label="遊び方">?</button>
     </header>
-    <section className="intro"><div><p className="eyebrow">COLOR × LIGHT PUZZLE</p><h1>欠けた光を、<br/><em>色で埋める。</em></h1></div><div className="intro-side"><p className="lede">左の固有色と、右に残された光の手がかりを観察して、空白に入る色を推理しよう。</p><label className="count-select">虫食い数<select value={missingCount} onChange={e=>changeCount(Number(e.target.value))}>{[3,5,6,8,10].map(n=><option key={n} value={n}>{n} マス</option>)}</select></label></div></section>
+    <section className="intro"><div><p className="eyebrow">COLOR × LIGHT PUZZLE</p><h1>欠けた光を、<br/><em>色で埋める。</em></h1></div><div className="intro-side"><p className="lede">左の固有色と、右に残された光の手がかりを観察して、空白に入る色を推理しよう。</p><div className="game-settings"><div className="setting-row"><span>モード</span><div className="segmented"><button className={difficulty==='easy'?'selected':''} onClick={()=>changeDifficulty('easy')}>イージー</button><button className={difficulty==='normal'?'selected':''} onClick={()=>changeDifficulty('normal')}>ノーマル</button></div></div><div className="setting-row"><span>虫食い数</span><div className="count-buttons">{[3,5,6,8,10].map(n=><button key={n} className={missingCount===n?'selected':''} onClick={()=>changeCount(n)}>{n}</button>)}</div></div></div></div></section>
     {showHint&&<aside className="hint"><b>遊び方</b><span>右の点線セルを選択 → 下のパレットで色を調整 → すべて埋めたら採点。残っている色から光の色と強さを読み取るのがコツです。</span><button onClick={()=>setShowHint(false)}>×</button></aside>}
     <section className="game-area">
       <div className="boards">
@@ -90,7 +92,7 @@ export default function Home() {
           <div><span>鮮やかさ</span><strong>{stats.saturation}%</strong></div>
         </div>{scores[active]!==undefined&&<div className="cell-score"><strong>{scores[active]}</strong><span>/ 100<br/>このマスの点数</span></div>}</div><div className="adjust-side">
         <div className="sliders hsv-sliders">
-          <label><span className="channel h">H</span><input className="hue-input" type="range" min="0" max="359" value={stats.h} onChange={e=>updateHSV('h',Number(e.target.value))}/><output>{stats.h}°</output></label>
+          <label className={difficulty==='easy'?'locked':''}><span className="channel h">H</span><input className="hue-input" type="range" min="0" max="359" value={stats.h} disabled={difficulty==='easy'} onChange={e=>updateHSV('h',Number(e.target.value))}/><output>{difficulty==='easy'?'固定':`${stats.h}°`}</output></label>
           <label><span className="channel s">S</span><input type="range" min="0" max="100" value={stats.saturation} onChange={e=>updateHSV('s',Number(e.target.value))}/><output>{stats.saturation}%</output></label>
           <label><span className="channel v">V</span><input type="range" min="0" max="100" value={stats.brightness} onChange={e=>updateHSV('v',Number(e.target.value))}/><output>{stats.brightness}%</output></label>
         </div>
